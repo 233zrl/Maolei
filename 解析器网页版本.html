@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <style>
+    .lrtb {
+      position: absolute;
+      width: 120px;
+      height: 120px;
+      bottom: 10px;
+      left: 10px;
+      user-select: none;
+    }
+
+    .btn {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      text-align: center;
+      background-color: rgba(182, 183, 196, 0.5);
+      border: 1px solid black;
+
+      text-align: center;
+      line-height: 40px;
+    }
+
+    .left {
+      left: 0;
+      top: 50%;
+      margin-top: -20px;
+    }
+
+    .right {
+      right: 0;
+      top: 50%;
+      margin-top: -20px;
+    }
+
+    .top {
+      top: 0;
+      left: 50%;
+      margin-left: -20px;
+    }
+
+    .bottom {
+      bottom: 0;
+      left: 50%;
+      margin-left: -20px;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas></canvas>
+  <dialog class="dialog"></dialog>
+  <div class="lrtb">
+    <div class="btn left">&lt;</div>
+    <div class="btn right">&gt;</div>
+    <div class="btn top">∧</div>
+    <div class="btn bottom">∨</div>
+  </div>
+  <!-- 存档信息{
+
+    主角信息：
+    主角所在地图，所在坐标,队伍列表｛id｝
+    角色信息：
+    角色列表{id，名称}
+    其他存档信息：暂无
+    
+    }
+    地图信息{
+    
+    基本信息：
+    地图大小
+    图块样式信息：
+    是否阻止前行，图块图片地址
+    事件信息：
+    地图事件列表{坐标，名称，事件列表{事件类型，必要描述}}
+    
+    } -->
+  <script>
+    // 游戏基本信息
+    const save = {
+      //主角
+      plyr: {
+        //所在地图
+        mapId: 0,
+        //所在坐标
+        pos: { x: 0, y: 0 },
+        // 队伍列表
+        team: [1, 2]
+      },
+      //角色列表
+      role: [
+        { id: 1, name: '小明' },
+        { id: 2, name: '小红' }
+      ],
+      //地图
+      map: [
+        {
+          // 地图大小 （x,y）地图块数量，size图块大小，没有block的地方为黑色
+          size: { x: 10, y: 10, size: 50 },
+          // 地图图块图片列表
+          mapImg: [
+            {
+              //单个图块大小
+              size: 50,
+              img: 'https://233zrl.github.io/Maolei/1.png'
+            },
+            {
+              size: 50,
+              img: 'https://233zrl.github.io/Maolei/1.png'
+            }
+          ],
+          // 地图图块
+          block: [
+            {
+              x: 0,
+              y: 0,
+              // 能否通行
+              passable: true,
+              // 图块图片id
+              img: 0,
+              // 图块图片坐标
+              imgx: 0,
+              imgy: 0,
+            },
+            {
+              //x0,y1
+              x: 0,
+              y: 1,
+              passable: true,
+              // 图块图片id
+              img: 0,
+              // 图块图片坐标
+              imgx: 0,
+              imgy: 1,
+            },
+            {
+              x: 1,
+              y: 1,
+              passable: true,
+              // 图块图片id
+              img: 0,
+              // 图块图片坐标
+              imgx: 1,
+              imgy: 1,
+            },
+            {
+              x: 1,
+              y: 2,
+              passable: true,
+              img: 0,
+              imgx: 1,
+              imgy: 1,
+            },
+            {
+              // x1,y2
+              x: 1,
+              y: 3,
+              passable: false,
+              img: 0,
+              imgx: 4,
+              imgy: 4,
+            }
+          ],
+          // 事件列表
+          event: [
+            { pos: { x: 1, y: 1 }, name: '事件1', event: [{ type: '对话', desc: '你好' }] },
+            { pos: { x: 2, y: 2 }, name: '事件2', event: [{ type: '对话', desc: '你好' }] }
+          ]
+        },
+      ]
+    }
+    // 画布
+    const canvas = document.querySelector('canvas')
+    const ctx = canvas.getContext('2d')
+
+    // 图块大小
+    const size = save.map[0].size.size
+
+    // 地图渲染函数
+    function renderMap() {
+      // 清空画布
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      // 画布大小
+      canvas.width = save.map[0].size.x * size
+      canvas.height = save.map[0].size.y * size
+      // 渲染底层黑色地图
+      ctx.fillStyle = 'black'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+      // 渲染地图图块
+      save.map[0].block.forEach(block => {
+        // 图块图片
+        const img = images[block.img]
+        // 图块图片坐标
+        const imgx = block.imgx * size
+        const imgy = block.imgy * size
+        // 渲染图块
+        ctx.drawImage(img, imgx, imgy, size, size, block.x * size, block.y * size, size, size)
+      })
+
+    }
+
+    // 加载图块图片
+    const images = []
+    let loadedImages = 0
+    save.map[0].mapImg.forEach((imgData, index) => {
+      const img = new Image()
+      img.src = imgData.img
+      img.onload = () => {
+        loadedImages++
+        if (loadedImages === save.map[0].mapImg.length) {
+          renderMap()
+          renderPlyr()
+        }
+      }
+      images[index] = img
+    })
+
+    // 渲染主角函数（暂用0.75x 0.5y的红色方块代替）
+    function renderPlyr() {
+      ctx.fillStyle = 'red'
+      ctx.fillRect(save.plyr.pos.x * size + size * 0.25, save.plyr.pos.y * size + size * 0.5, size * 0.5, size * 0.25)
+    }
+
+    //获取移动按钮
+    const left = document.querySelector('.left')
+    const right = document.querySelector('.right')
+    const topbtn = document.querySelector('.top')
+    const bottom = document.querySelector('.bottom')
+
+    // 事件系列
+    let es = 0 // 自定义的事件顺序变量
+
+    // 获取标签
+    const dialogTC = document.querySelector('.dialog') // 获取弹窗
+
+    // 事件函数
+
+    // 按顺序，依次执行
+    function bianLiSJ(i) {
+      const currentEvent = save.map[0].event[i].event[es]
+      // 检查当前事件是否存在
+      if (!currentEvent || currentEvent.type === 'over' || currentEvent.type === undefined) {
+        // 将自定义的事件顺序变量，在本次事件结束后 清零。
+        es = 0
+        // 并在这里，结束函数（return）
+        return console.log('结束');
+      }
+      // 调用判断函数，并传递：事件数组的下标（i），事件的类型（... .type）。
+      shiJianPD(i, currentEvent.type)
+    }
+
+    // 判断函数
+    function shiJianPD(i, type) {
+      // 判断事件类型，并调用对应函数，传递事件数组下标。
+      switch (type) {
+        case '对话':
+          dialogSJ(i)
+          break;
+        case '传送':
+          shiftSJ(i)
+          break;
+      }
+    }
+
+    // 对话框
+    function dialogSJ(i) {
+      // 需要执行的
+      const ess = es
+      es += 1
+      const currentEvent = save.map[0].event[i].event[ess]
+      // 检查当前事件是否存在
+      if (!currentEvent) return
+      // 修改弹窗的文本为：事件描述的文本
+      dialogTC.innerHTML = currentEvent.desc
+      // 打开弹窗
+      dialogTC.showModal()
+      // ie：1立即执行
+      if (currentEvent.ie !== 0) {
+        bianLiSJ(i)
+      }
+      // 函数
+      function fun() {
+        // 判断 是否立即执行（ie）
+        if (currentEvent.ie == 0) {
+          // 不立即执行，先关闭再执行
+          dialogTC.close()
+          bianLiSJ(i)
+        } else {
+          // 立即执行，关闭，在之前已经执行了
+          dialogTC.close()
+        }
+        // 解绑事件，方便下次继续
+        dialogTC.removeEventListener('click', fun)
+      }
+      // 点击事件
+      dialogTC.addEventListener('click', fun)
+    }
+
+    // 位移、传送
+    function shiftSJ(i) {
+      const currentEvent = save.map[0].event[i].event[es]
+      // 检查当前事件是否存在
+      if (!currentEvent) return
+      save.plyr.pos.x = currentEvent.x
+      save.plyr.pos.y = currentEvent.y
+
+      renderMap()
+      renderPlyr()
+      es += 1
+      bianLiSJ(i)
+    }
+
+    // 触发事件
+    function triggerEvent(x, y) {
+      const event = save.map[0].event.find(e => e.pos.x === x && e.pos.y === y)
+      if (event) {
+        bianLiSJ(save.map[0].event.indexOf(event))
+      }
+    }
+
+    // 在移动函数中调用触发事件
+    function move(x, y) {
+      // 获取目标位置的图块
+      const targetX = save.plyr.pos.x + x
+      const targetY = save.plyr.pos.y + y
+      const block = save.map[0].block.find(block => block.x === targetX && block.y === targetY)
+
+      // 判断目标位置是否有图块且图块可通行
+      if (block && block.passable) {
+        save.plyr.pos.x = targetX
+        save.plyr.pos.y = targetY
+        renderMap()
+        renderPlyr()
+        triggerEvent(targetX, targetY)
+      }
+    }
+
+    // 移动按钮事件
+    left.onclick = () => move(-1, 0)
+    right.onclick = () => move(1, 0)
+    topbtn.onclick = () => move(0, -1)
+    bottom.onclick = () => move(0, 1)
+
+    // 绑定wasd
+    window.onkeydown = e => {
+      switch (e.key) {
+        case 'a':
+          move(-1, 0)
+          break
+        case 'd':
+          move(1, 0)
+          break
+        case 'w':
+          move(0, -1)
+          break
+        case 's':
+          move(0, 1)
+          break
+      }
+    }
+
+    // 添加事件
+    save.map[0].event.push({
+      pos: { x: 1, y: 1 },
+      name: '对话后传送事件',
+      event: [
+        { type: '对话', desc: '你好，这是一个对话事件。', ie: 0 },
+        { type: '传送', x: 0, y: 0 }
+      ]
+    })
+  </script>
+</body>
+
+</html>
