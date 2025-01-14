@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <style>
+    body,
+    html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100%;
+      background-color: #ccc;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    .lrtb {
+      position: absolute;
+      width: 120px;
+      height: 120px;
+      bottom: 10px;
+      left: 10px;
+      user-select: none;
+    }
+
+    .btn {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      text-align: center;
+      background-color: rgba(182, 183, 196, 0.5);
+      border: 1px solid black;
+
+      text-align: center;
+      line-height: 40px;
+    }
+
+    .left {
+      left: 0;
+      top: 50%;
+      margin-top: -20px;
+    }
+
+    .right {
+      right: 0;
+      top: 50%;
+      margin-top: -20px;
+    }
+
+    .top {
+      top: 0;
+      left: 50%;
+      margin-left: -20px;
+    }
+
+    .bottom {
+      bottom: 0;
+      left: 50%;
+      margin-left: -20px;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas></canvas>
+  <dialog class="dialog"></dialog>
+  <div class="lrtb">
+    <div class="btn left">&lt;</div>
+    <div class="btn right">&gt;</div>
+    <div class="btn top">∧</div>
+    <div class="btn bottom">∨</div>
+  </div>
+  <!-- 存档信息{
+
+    主角信息：
+    主角所在地图，所在坐标,队伍列表｛id｝
+    角色信息：
+    角色列表{id，名称}
+    其他存档信息：暂无
+    
+    }
+    地图信息{
+    
+    基本信息：
+    地图大小
+    图块样式信息：
+    是否阻止前行，图块图片地址
+    事件信息：
+    地图事件列表{坐标，名称，事件列表{事件类型，必要描述}}
+    
+    } -->
+  <script>
+    // 获取画布和上下文
+    const canvas = document.querySelector('canvas');
+    const ctx = canvas.getContext('2d');
+
+    // 游戏存档信息
+    const save = {
+      plyr: {
+        //地图id，修改它可以切换地图
+        mapId: 0,
+        //`pos`是主角的坐标
+        pos: { x: 0, y: 0 },
+        //`team`是主角的队伍列表,暂时无用
+        team: [1, 2]
+      },
+      //角色列表，暂时无用
+      role: [
+        { id: 1, name: '小明' },
+        { id: 2, name: '小红' }
+      ],
+      //地图列表，包含地图的基本信息，图块样式信息，事件信息
+      map: [
+        {
+          //地图大小,单位是图块,size是图块的大小
+          size: { x: 50, y: 50, size: 50 },
+          //摄像机范围设置,`width`和`height`可以设置为`auto`，表示自动适应画布大小
+          camera: { width: 'auto', height: 'auto' }, 
+          //地图图片列表，`size`是图块的大小，`img`是图片的地址
+          mapImg: [
+            { size: 50, img: 'https://233zrl.github.io/Maolei/1.png' },
+            { size: 50, img: 'img/2.png' }
+          ],
+          //图块信息列表，`x`和`y`是图块的坐标，`passable`表示是否阻止前行，`img`是地图图片列表的下标，`imgx`和`imgy`是图片的坐标
+          block: [
+            { x: 0, y: 0, passable: true, img: 0, imgx: 0, imgy: 1 },
+            { x: 0, y: 1, passable: true, img: 0, imgx: 0, imgy: 1 },
+            { x: 0, y: 2, passable: true, img: 0, imgx: 0, imgy: 1 },
+            { x: 0, y: 3, passable: true, img: 0, imgx: 0, imgy: 1 },
+            { x: 0, y: 4, passable: true, img: 0, imgx: 0, imgy: 1 },
+            { x: 1, y: 1, passable: true, img: 0, imgx: 1, imgy: 1 },
+            { x: 1, y: 2, passable: true, img: 0, imgx: 1, imgy: 1 },
+            { x: 1, y: 3, passable: false, img: 0, imgx: 4, imgy: 4 }
+          ],
+          //事件列表，`pos`是事件的坐标，`name`是事件的名称，`event`是事件列表
+          //事件列表中的`type`是事件的类型，`desc`是事件的描述，`ie`是是否继续执行事件的标志
+          //`img`是事件的图片信息，`mapImgId`是地图图片列表的下标，`x`和`y`是图片的坐标
+          //目前有两种事件类型：`对话`和`传送`，`对话`事件会弹出对话框，`传送`事件会传送主角到指定地点
+          //对话和传送分别有不同的必要描述，`对话`事件的`ie`属性是是否继续执行事件的标志，`传送`事件的`x`和`y`是传送的坐标，`mapId`是传送的地图id
+          event: [
+            { pos: { x: 1, y: 1 }, name: '对话后传送事件', event: [{ type: '对话', desc: '你好，这是一个对话事件。接下来，你会被传送。', ie: 0 }, { type: '传送', x: 0, y: 0, mapId: 1 }] }
+          ]
+        },
+        {
+          size: { x: 50, y: 50, size: 50 },
+          camera: { width: 'auto', height: 'auto' }, // 摄像机范围设置
+          mapImg: [
+            { size: 50, img: 'https://233zrl.github.io/Maolei/1.png' },
+            { size: 50, img: './img/2.png' },
+            { size: 750, img: './img/ecy.jpg' }
+          ],
+          block: [
+            { x: 0, y: 0, passable: true, img: 0, imgx: 0, imgy: 1 },
+            { x: 0, y: 1, passable: true, img: 0, imgx: 0, imgy: 1 },
+            { x: 0, y: 2, passable: true, img: 0, imgx: 0, imgy: 1 },
+            { x: 0, y: 3, passable: true, img: 0, imgx: 0, imgy: 1 },
+            { x: 2, y: 1, passable: true, img: 0, imgx: 0, imgy: 1 },
+            { x: 1, y: 1, passable: true, img: 0, imgx: 3, imgy: 3 },
+            { x: 1, y: 2, passable: true, img: 0, imgx: 1, imgy: 1 },
+            { x: 1, y: 3, passable: false, img: 0, imgx: 4, imgy: 4 }
+          ],
+          event: [
+            { pos: { x: 1, y: 1 }, name: '对话后传送事件', img: { mapImgId: 2, x: 0, y: 0, }, event: [{ type: '对话', desc: '恭喜你，来到了里世界，现在我会送你回去', ie: 0 }, { type: '传送', x: 0, y: 0, mapId: 0 }] },
+            { pos: { x: 2, y: 1 }, name: '图片测试', img: { mapImgId: 2, x: 0, y: 0, }, event: [{ type: '对话', desc: '恭喜你，来到了里世界，现在我会送你回去', ie: 0 }, { type: '传送', x: 0, y: 0, mapId: 0 }] }
+          ]
+        },
+      ]
+    };
+
+    // 加载图块图片
+    const images = [];
+    let loadedImages = 0;
+    save.map[save.plyr.mapId].mapImg.forEach((imgData, index) => {
+      const img = new Image();
+      img.src = imgData.img;
+      img.onload = () => {
+        loadedImages++;
+        if (loadedImages === save.map[save.plyr.mapId].mapImg.length) {
+          resizeCanvas();
+          renderMap();
+          renderPlyr();
+
+        }
+      };
+      images[index] = img;
+    });
+
+    // 调整画布大小以适应屏幕
+    function resizeCanvas() {
+      const maxSize = 800;
+      const minSize = 400;
+      const aspectRatio = 16 / 9;
+      let width = window.innerWidth;
+      let height = window.innerHeight;
+
+      if (width / height > aspectRatio) {
+        width = height * aspectRatio;
+      } else {
+        height = width / aspectRatio;
+      }
+
+      const size = Math.min(Math.max(width, height), maxSize);
+      canvas.width = size;
+      canvas.height = size / aspectRatio;
+      renderMap();
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // 地图渲染函数
+    /**
+     * 渲染地图的函数
+     * @function renderMap
+     * @description 这个函数用于渲染地图，包括地图的背景和地图上的元素
+     */
+    function renderMap() {
+      // 获取当前地图的信息
+      const map = save.map[save.plyr.mapId];
+      // 清空画布
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // 设置画布的填充颜色为黑色
+      ctx.fillStyle = '#000';
+      // 填充整个画布
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 计算相机的宽度和高度
+      const cameraWidth = map.camera.width === 'auto' ? canvas.width : map.camera.width;
+      const cameraHeight = map.camera.height === 'auto' ? canvas.height : map.camera.height;
+
+      // 计算相机的位置
+      const camera = {
+        x: Math.max(0, Math.min(save.plyr.pos.x * map.size.size - cameraWidth / 2, map.size.x * map.size.size - cameraWidth)),
+        y: Math.max(0, Math.min(save.plyr.pos.y * map.size.size - cameraHeight / 2, map.size.y * map.size.size - cameraHeight))
+      };
+
+      // 遍历地图上的每一个元素
+      map.block.forEach(block => {
+        // 获取元素的图片
+        const img = images[block.img];
+        // 获取图片的坐标
+        const imgx = block.imgx * map.size.size;
+        const imgy = block.imgy * map.size.size;
+        // 计算元素在画布上的坐标
+        const x = block.x * map.size.size - camera.x;
+        const y = block.y * map.size.size - camera.y;
+        // 如果元素在画布的可视区域内，则在画布上绘制该元素
+        if (x + map.size.size > 0 && x < canvas.width && y + map.size.size > 0 && y < canvas.height) {
+          ctx.drawImage(img, imgx, imgy, map.size.size, map.size.size, x, y, map.size.size, map.size.size);
+        }
+      });
+
+      // 遍历地图上的每一个事件,如果img对象为空则不渲染，不为空参数默认都为0，有参数则覆盖默认参数 
+      map.event.forEach(event => {
+        if (event.img) {
+          const img = images[event.img.mapImgId];
+          const imgx = event.img.x * map.size.size;
+          const imgy = event.img.y * map.size.size;
+          const x = event.pos.x * map.size.size - camera.x;
+          const y = event.pos.y * map.size.size - camera.y;
+          if (x + map.size.size > 0 && x < canvas.width && y + map.size.size > 0 && y < canvas.height) {
+            ctx.drawImage(img, imgx, imgy, map.size.size, map.size.size, x, y, map.size.size, map.size.size);
+          }
+        } else {
+          console.log('否则也不该报错才是');
+
+        }
+      });
+
+    }
+
+    // 渲染主角函数（暂用0.75x 0.5y的红色方块代替）
+    function renderPlyr() {
+      const map = save.map[save.plyr.mapId];
+      const cameraWidth = map.camera.width === 'auto' ? canvas.width : map.camera.width;
+      const cameraHeight = map.camera.height === 'auto' ? canvas.height : map.camera.height;
+
+      const camera = {
+        x: Math.max(0, Math.min(save.plyr.pos.x * map.size.size - cameraWidth / 2, map.size.x * map.size.size - cameraWidth)),
+        y: Math.max(0, Math.min(save.plyr.pos.y * map.size.size - cameraHeight / 2, map.size.y * map.size.size - cameraHeight))
+      };
+      ctx.fillStyle = 'red';
+      const x = save.plyr.pos.x * map.size.size - camera.x;
+      const y = save.plyr.pos.y * map.size.size - camera.y;
+      ctx.fillRect(x + map.size.size * 0.25, y + map.size.size * 0.5, map.size.size * 0.5, map.size.size * 0.25);
+    }
+
+    // 自定义的事件顺序变量
+    let es = 0;
+    const dialogTC = document.querySelector('.dialog');
+
+    // 按顺序，依次执行事件
+    function bianLiSJ(i) {
+      const map = save.map[save.plyr.mapId];
+      const currentEvent = map.event[i].event[es];
+      // 检查当前事件是否存在
+      if (!currentEvent || currentEvent.type === 'over' || currentEvent.type === undefined) {
+        // 将自定义的事件顺序变量，在本次事件结束后 清零。
+        es = 0;
+        // 并在这里，结束函数（return）
+        return console.log('结束');
+      }
+      // 调用判断函数，并传递：事件数组的下标（i），事件的类型（... .type）。
+      shiJianPD(i, currentEvent.type);
+    }
+
+    // 判断事件类型，并调用对应函数，传递事件数组下标。
+    function shiJianPD(i, type) {
+      switch (type) {
+        case '对话':
+          dialogSJ(i);
+          break;
+        case '传送':
+          shiftSJ(i);
+          break;
+      }
+    }
+
+    // 对话框事件
+    function dialogSJ(i) {
+      const map = save.map[save.plyr.mapId];
+      const ess = es;
+      es += 1;
+      const currentEvent = map.event[i].event[ess];
+      if (!currentEvent) return;
+      dialogTC.innerHTML = currentEvent.desc;
+      dialogTC.showModal();
+      if (currentEvent.ie !== 0) {
+        bianLiSJ(i);
+      }
+      function fun() {
+        if (currentEvent.ie == 0) {
+          dialogTC.close();
+          bianLiSJ(i);
+        } else {
+          dialogTC.close();
+        }
+        dialogTC.removeEventListener('click', fun);
+      }
+      dialogTC.addEventListener('click', fun);
+    }
+
+    // 传送事件
+    function shiftSJ(i) {
+      const map = save.map[save.plyr.mapId];
+      const currentEvent = map.event[i].event[es];
+      if (!currentEvent) return;
+
+      // 更新主角位置
+      save.plyr.pos.x = currentEvent.x;
+      save.plyr.pos.y = currentEvent.y;
+
+      // 检查是否有 mapId 属性，如果有则更新主角的 mapId 并重新加载地图
+      if (currentEvent.mapId !== undefined) {
+        save.plyr.mapId = currentEvent.mapId;
+        loadMap();
+      } else {
+        renderMap();
+        renderPlyr();
+      }
+
+      es += 1;
+      bianLiSJ(i);
+    }
+
+    // 加载地图函数
+    function loadMap() {
+      const map = save.map[save.plyr.mapId];
+      loadedImages = 0;
+      images.length = 0;
+      map.mapImg.forEach((imgData, index) => {
+        const img = new Image();
+        img.src = imgData.img;
+        img.onload = () => {
+          loadedImages++;
+          if (loadedImages === map.mapImg.length) {
+            resizeCanvas();
+            renderMap();
+            renderPlyr();
+          }
+        };
+        images[index] = img;
+      });
+    }
+
+    // 触发事件函数
+    function triggerEvent(x, y) {
+      const map = save.map[save.plyr.mapId];
+      const event = map.event.find(e => e.pos.x === x && e.pos.y === y);
+      if (event) {
+        es = 0;
+        bianLiSJ(map.event.indexOf(event));
+      }
+    }
+
+    // 移动函数
+    function move(x, y) {
+      const map = save.map[save.plyr.mapId];
+      if (es !== 0) return;
+      const targetX = save.plyr.pos.x + x;
+      const targetY = save.plyr.pos.y + y;
+      const block = map.block.find(block => block.x === targetX && block.y === targetY);
+      if (block && block.passable) {
+        save.plyr.pos.x = targetX;
+        save.plyr.pos.y = targetY;
+        renderMap();
+        renderPlyr();
+        triggerEvent(targetX, targetY);
+      }
+    }
+
+    // 获取移动按钮
+    const left = document.querySelector('.left');
+    const right = document.querySelector('.right');
+    const topbtn = document.querySelector('.top');
+    const bottom = document.querySelector('.bottom');
+
+    // 移动按钮事件
+    left.onclick = () => move(-1, 0);
+    right.onclick = () => move(1, 0);
+    topbtn.onclick = () => move(0, -1);
+    bottom.onclick = () => move(0, 1);
+
+    // 绑定键盘事件
+    window.onkeydown = e => {
+      switch (e.key) {
+        case 'a':
+          move(-1, 0);
+          break;
+        case 'd':
+          move(1, 0);
+          break;
+        case 'w':
+          move(0, -1);
+          break;
+        case 's':
+          move(0, 1);
+          break;
+      }
+    };
+
+  </script>
+</body>
+
+</html>
